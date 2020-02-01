@@ -31,5 +31,8 @@ function validate_edge(string $y) : bool {
     return validate_num($y, 0, MAX_INT);
 }
 
+function validate_node(string $num) : bool {
+    return validate_num($num, 0, MAX_INT);
+}
 
 ?>

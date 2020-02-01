@@ -130,7 +130,7 @@ function api() : array {
             $check_exists->execute([":a" => $a, ":b" => $b]);
             
             $result = $check_exists->FetchAll(PDO::FETCH_ASSOC);
-            if (count($result) == 0) return [6, $op, "Edge already exists"];
+            if (count($result) != 0) return [6, $op, "Edge already exists"];
             
             $stmt = $conn->prepare("INSERT INTO edges (votes, a, b) VALUES (1, :a, :b)");
             
