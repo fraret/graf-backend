@@ -1,0 +1,19 @@
+
+[db]
+
+server = localhost
+user = root
+password = root
+database = graf
+
+[nodes]
+MAX_NODE_ID = 20000
+MIN_NODE_ID = 10000
+
+MIN_YEAR = 2000
+MAX_YEAR = 2050
+
+MIN_X = -10000
+MAX_X = 10000
+MIN_Y = -10000
+MAX_Y = 10000
