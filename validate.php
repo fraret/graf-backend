@@ -28,11 +28,11 @@ function validate_year(string $y) : bool {
 }
 
 function validate_edge(string $y) : bool {
-    return validate_num($y, 0, MAX_INT);
+    return validate_num($y, 0, 999999999);
 }
 
 function validate_node(string $num) : bool {
-    return validate_num($num, 0, MAX_INT);
+    return validate_num($num, 0, 999999999);
 }
 
 ?>
