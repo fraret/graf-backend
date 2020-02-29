@@ -4,11 +4,14 @@ require_once "config.php";
 require_once "various.php";
 require_once "validate.php";
 
-$supported_operations = array(
+$supported_operations = [
     "add_node" => "add_node",
     "add_edge" => "add_edge",
-    "edit_node" => "edit_node"
-);
+    "edit_node" => "edit_node",
+    "move_node" => "move_node",
+    "del_node" => "del_node",
+    "del_edge" => "del_edge"
+];
 
 /*
  * A function to simplify the flow of the program.
@@ -25,6 +28,8 @@ $supported_operations = array(
  * 6 - Tried to create already-existing object
  * 7 - Tried to perform an operation involving a non-existing object
  * 8 - Arguments are invalid because of other reasons
+ * 9 - Tried to perform an operation over an object that could not have it performed
+ *      (at the moment, deleting a node with edges)
  */
 function api() : array {
 
@@ -186,21 +191,26 @@ function api() : array {
             
             $executed_ops = 0;
             
+            $par = ["id" => (int) $id];
+            
             if (check_set(["year"]) === true) {
                 $node_year = $_POST["year"];
                 if (!validate_year($node_year)) return ["status" => 4, "action" => $op,"msg" =>"year not an integer or out of range"];
                 $year = true; 
+                $par["year"] = (int) $node_year;
             }
                 
             if (check_set(["sex"]) === true) {
                 $node_sex = $_POST["sex"];
                 if (!array_key_exists($node_sex, $sexes)) return ["status" => 4, "action" => $op, "msg" => "Invalid sex"];
                 $sex = true;
+                $par["sex"] = $node_sex;
             }
                 
             if (check_set(["name"]) === true) {
                 $node_name = sanitize_string($_POST["name"]);
                 $name = true;
+                $par["name"] = $node_name;
             }
             
             if($sex) {
@@ -221,7 +231,7 @@ function api() : array {
             if ($executed_ops == 0) {
                 return ["status" => 3,"action" => $op, "msg" => "Tried to edit a node but specified no fields to edit"];
             } else {
-                return ["status" => 0, "action" => $op];
+                return ["status" => 0, "action" => $op, "par" => $par];
             }
         } elseif ($op == "move_node") {
             $check_error = check_set(["id","x","y"]);
@@ -244,14 +254,97 @@ function api() : array {
             $stmt = $conn->prepare("UPDATE nodes SET x =:x, y=:y WHERE id = :id");
             $stmt->execute([":id" => $id,":x" => $node_x, ":y" => $node_y]);
             
+            return ["status" => 0, "action" => $op, "par" => ["id" => $id, "x" => $x, "y" => $y]];
         } elseif ($op == "del_node") {
+            
+            $check_error = check_set(["id"]);
+            if(is_string($check_error)) return ["status" => 3,"action" => $op, "msg" => $check_error];
+            
+            $id = $_POST["id"];
+            if (!validate_node($id)) return ["status" =>4, "action" => $op, "msg" => "Non-valid node number"];
+            
+            $id = (int) $id;
+            
             $check_exists = $conn->prepare("SELECT id FROM nodes WHERE id = :id");
             $check_exists->execute([":id" => $id]);
             $result = $check_exists->FetchAll(PDO::FETCH_ASSOC);
             if (count($result) == 0) return ["status" =>7, "action" => $op, "msg" => "node does not exist"];
             
+            $check_exists = $conn->prepare("SELECT id FROM edges WHERE a = :a or b = :b" );
+            $check_exists->execute([":a" => $id, ":b" => $id]);
+            
+            $result = $check_exists->FetchAll(PDO::FETCH_ASSOC);
+            if (count($result) != 0) return ["status" =>9, "action" => $op, "msg" => "Trying to delete a node with edges"];
+            
+            $stmt = $conn->prepare("DELETE FROM nodes WHERE id = :id");
+            $stmt->execute([":id" => $id]);
+            
+            $check_exists = $conn->prepare("SELECT id FROM nodes WHERE id = :id" );
+            $check_exists->execute([":id" => $id]);
+            
+            $result = $check_exists->FetchAll(PDO::FETCH_ASSOC);
+            if (count($result) != 0) {
+                syslog (LOG_ERR, "Node deleted but still present in database");
+                return ["status" =>5, "action" => $op, "msg" => "Internal error"];
+            }
+            return ["status" => 0, "action" => $op, "par" => ["id" => $id]];
+            
+            
         } elseif ($op == "del_edge") {
-        
+            $par = [];
+            $check_error = check_set(["id"]);
+            if(is_string($check_error)) {
+                $check_error = check_set(["a","b"]);
+                if(is_string($check_error)) return ["status" => 3,"action" => $op, "msg" => "Missing both id and a and b, one way to identify the edge is needed to delete it"];
+                
+                $a = $_POST["a"];
+                if (!validate_node($a)) return ["status" =>4, "action" => $op, "msg" => "Non-valid node a number"];
+                
+                $b = $_POST["b"];
+                if (!validate_node($b)) return ["status" =>4, "action" => $op, "msg" => "Non-valid node b number"];
+                
+                $a = (int) $a;
+                $b = (int) $b;
+                
+                if ($a > $b) {
+                    $aux = $b;
+                    $b = $a;
+                    $a = $aux;
+                }
+                
+                $check_exists = $conn->prepare("SELECT id FROM edges WHERE a = :a and b = :b" );
+                $check_exists->execute([":a" => $a, ":b" => $b]);
+            
+                $result = $check_exists->FetchAll(PDO::FETCH_ASSOC);
+                if (count($result) == 0) return ["status" => 7, "action" => $op, "msg" => "Edge does not exist"];
+                
+                $id = (int) $result[0]["id"];
+                $par = ["a" => $a, "b" => $b, "id" => $id]; 
+                
+            } else {
+                $id = $_POST["id"];
+                if (!validate_edge($id)) return ["status" =>4, "action" => $op, "msg" => "Non-valid edge number"];
+                $par["id"] = $id;
+                
+                $check_exists = $conn->prepare("SELECT id FROM edges WHERE id = :id");
+                $check_exists->execute([":id" => $id]);
+                $result = $check_exists->FetchAll(PDO::FETCH_ASSOC);
+                if (count($result) == 0) return ["status" =>7, "action" => $op, "msg" => "Edge does not exist"];
+            }
+            
+            $stmt = $conn->prepare("DELETE FROM edges WHERE id = :id");
+            $stmt->execute([":id" => $id]);
+            
+            $check_exists = $conn->prepare("SELECT id FROM edges WHERE id = :id" );
+            $check_exists->execute([":id" => $id]);
+            
+            $result = $check_exists->FetchAll(PDO::FETCH_ASSOC);
+            if (count($result) != 0) {
+                syslog (LOG_ERR, "Edge deleted but still present in database");
+                return ["status" =>5, "action" => $op, "msg" => "Internal error"];
+            }
+            return ["status" => 0, "action" => $op, "par" => $par];
+            
         }
         
         
