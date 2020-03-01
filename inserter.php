@@ -10,7 +10,8 @@ $supported_operations = [
     "edit_node" => "edit_node",
     "move_node" => "move_node",
     "del_node" => "del_node",
-    "del_edge" => "del_edge"
+    "del_edge" => "del_edge",
+    "fetch_json" => "fetch_json"
 ];
 
 /*
@@ -345,6 +346,36 @@ function api() : array {
             }
             return ["status" => 0, "action" => $op, "par" => $par];
             
+        } elseif ($op == "fetch_json") {
+            $stmt = $conn->prepare("SELECT id, name, year, x, y, sex FROM nodes");
+            $stmt->execute();
+            $nodes_prenum = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            $nodes = [];
+            foreach ($nodes_prenum as $value) 
+            $nodes[$value['id']] = [
+                "id" => (int)($value['id']),
+                "name" => $value['name'],
+                "year" => (int) ($value['year']),
+                "x" => (int) ($value['x']),
+                "y" => (int) ($value['y']),
+                "sex" => $value['sex']
+            ];
+
+            //echo json_encode($nodes);
+            $stmt2 = $conn->prepare("SELECT * FROM edges");
+            $stmt2->execute();
+            $edgespre = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+            
+            $edges = [];
+            foreach($edgespre as $value)
+            $edges[$value['a'] . '_' . $value['b'] ] = [
+                "votes" => (int) $value['votes'],
+                "a" => (int) $value['a'],
+                "b" => (int) $value['b'] 
+            ];
+            $graf = ["nodes" => $nodes, "edges" => $edges];
+            return ["status" => 0, "action" => $op, "data" => $graf];
         }
         
         

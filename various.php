@@ -12,6 +12,8 @@ function check_set(array $vars) {
 function get_op() {
     if(!empty($_POST["action"])) {
         return $_POST["action"];
+    } elseif (!empty($_GET["action"])) {
+        return $_GET["action"];
     }
     return false;
 }
