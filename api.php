@@ -353,14 +353,16 @@ function api() : array {
             
             $nodes = [];
             foreach ($nodes_prenum as $value) 
-            $nodes[$value['id']] = [
-                "id" => (int)($value['id']),
-                "name" => $value['name'],
-                "year" => (int) ($value['year']),
-                "x" => (int) ($value['x']),
-                "y" => (int) ($value['y']),
-                "sex" => $value['sex']
-            ];
+            array_push($nodes, [
+                "key" => (int)($value['id']),
+                "attributes" => [
+                    "name" => $value['name'],
+                    "year" => (int) ($value['year']),
+                    "x" => (int) ($value['x']),
+                    "y" => (int) ($value['y']),
+                    "sex" => $value['sex']
+                ]
+            ]);
 
             //echo json_encode($nodes);
             $stmt2 = $conn->prepare("SELECT * FROM edges");
@@ -369,11 +371,15 @@ function api() : array {
             
             $edges = [];
             foreach($edgespre as $value)
-            $edges[$value['a'] . '_' . $value['b'] ] = [
-                "votes" => (int) $value['votes'],
-                "a" => (int) $value['a'],
-                "b" => (int) $value['b'] 
-            ];
+            array_push ($edges, [
+                "key" => $value['a'] . '_' . $value['b'],
+                "source" =>  $value['a'],
+                "target" =>  $value['b'], 
+                "attributes" => [
+                    "votes" => (int) $value['votes'],
+                ],
+                "undirected" => true
+            ]);
             $graf = ["nodes" => $nodes, "edges" => $edges];
             return ["status" => 0, "action" => $op, "data" => $graf];
         }
